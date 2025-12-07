@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Upload, Users, FolderOpen, Image, X } from "lucide-react";
+import { Upload, Users, Image, X } from "lucide-react";
 
 interface PlayerData {
   total_folders: number;
@@ -124,30 +124,6 @@ const App: React.FC = () => {
           </div>
           <h1 className="text-5xl font-bold text-white mb-2 drop-shadow-lg">PES Player Gallery</h1>
           <p className="text-gray-200 text-lg">eFootball Legends Collection</p>
-        </div>
-
-        {/* Setup Instructions */}
-        <div className="bg-indigo-500/20 backdrop-blur-md rounded-2xl p-6 mb-6 border-2 border-indigo-400/50">
-          <div className="flex items-start gap-3">
-            <FolderOpen className="text-indigo-300 mt-1 flex-shrink-0" size={24} />
-            <div className="text-white">
-              <p className="font-bold text-lg mb-2">📁 วิธีใช้งาน:</p>
-              <ol className="list-decimal list-inside space-y-1 text-sm">
-                <li>
-                  สร้างโฟลเดอร์ชื่อ <code className="bg-black/30 px-2 py-1 rounded">public/images</code> ในโปรเจค
-                </li>
-                <li>
-                  วางไฟล์รูปนักเตะแต่ละคนในโฟลเดอร์ <code className="bg-black/30 px-2 py-1 rounded">public/images/</code>
-                </li>
-                <li>
-                  ตั้งชื่อไฟล์รูปเป็นชื่อนักเตะแต่ละคน (เช่น <code className="bg-black/30 px-2 py-1 rounded">EdenHazard.png</code>,{" "}
-                  <code className="bg-black/30 px-2 py-1 rounded">FerencPuskas.png</code>)
-                </li>
-                <li>สำหรับการ์ดที่มี - (Duo Card) จะแสดงรูปของนักเตะทั้งสองคน</li>
-                <li>อัปโหลดไฟล์ JSON ด้านล่าง</li>
-              </ol>
-            </div>
-          </div>
         </div>
 
         {/* Upload Section */}
