@@ -370,7 +370,7 @@ const App: React.FC = () => {
 
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="bg-yellow-200 text-gray-900 font-bold px-3 py-1 rounded-full text-sm">{count} cards</span>
-                      {isDuoCard && <span className="bg-blue-500 text-white font-bold px-3 py-1 rounded-full text-sm flex items-center gap-1">🤝 Duo</span>}
+                      {isDuoCard && <span className="bg-blue-500 text-white font-bold px-3 py-1 rounded-full text-sm flex items-center gap-1">🤝 คู่</span>}
                       {isMultiCard && <span className="bg-purple-500 text-white font-bold px-3 py-1 rounded-full text-sm">📦 Multi {playerCount}</span>}
                     </div>
                   </div>
