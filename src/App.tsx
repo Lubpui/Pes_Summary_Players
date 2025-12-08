@@ -18,8 +18,11 @@ const App: React.FC = () => {
   const [playerData, setPlayerData] = useState<PlayerData | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [imageFormat, setImageFormat] = useState<string>("png");
+  const [isRanger, setIsRanger] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<string>("name-asc");
   const [selectedPlayer, setSelectedPlayer] = useState<SelectedPlayer | null>(null);
+
+  const refSingleUsersModal = React.createRef<HTMLDivElement>();
 
   // Prevent body scroll when modal is open
   React.useEffect(() => {
@@ -47,19 +50,29 @@ const App: React.FC = () => {
           alert("ไฟล์ JSON ไม่ถูกต้อง กรุณาลองใหม่");
         }
       };
+
+      setIsRanger(file.name === "ranger_summary.json");
       reader.readAsText(file);
     }
   };
 
   const getPlayerNames = (playerKey: string): string[] => {
-    return playerKey.split("-");
+    return playerKey.split(isRanger ? "_" : "-");
   };
 
   const getPlayerImages = (playerKey: string): string[] => {
-    const names = playerKey.split("-");
+    const names = playerKey
+      .replaceAll("Gear-", " ")
+      .trim()
+      .split(isRanger ? "_" : "-");
+
     return names.map((name) => {
       // สร้าง fallback URL โดยเพิ่มเว้นวรรคหลัง uppercase
-      const withSpace = name.replace(/([A-Z])/g, " $1").trim();
+      const withSpace = name
+        .replace(/([A-Z])(?![A-Z]*\])/g, " $1") // เพิ่มช่องว่างเฉพาะตัวพิมพ์ใหญ่ที่ไม่อยู่ใน []
+        .replace(/\s*\[/g, " [") // เพิ่มช่องว่างหน้า [
+        .replace(/\]\s*/g, "] ") // เพิ่มช่องว่างหลัง ]
+        .trim();
 
       // คืน URL หลัก (จะลองโหลดตามลำดับด้านล่างใน onError)
       return `/images/${withSpace}.${imageFormat}`;
@@ -83,14 +96,36 @@ const App: React.FC = () => {
             case "count-desc":
               return countB - countA;
             case "type-duo": {
-              const isDuoA = nameA.includes("-") ? 1 : 0;
-              const isDuoB = nameB.includes("-") ? 1 : 0;
+              const isDuoA = nameA.includes(isRanger ? "_" : "-") ? 1 : 0;
+              const isDuoB = nameB.includes(isRanger ? "_" : "-") ? 1 : 0;
               return isDuoB - isDuoA;
             }
             case "type-single": {
-              const isSingleA = nameA.includes("-") ? 0 : 1;
-              const isSingleB = nameB.includes("-") ? 0 : 1;
+              const isSingleA = nameA.includes(isRanger ? "_" : "-") ? 0 : 1;
+              const isSingleB = nameB.includes(isRanger ? "_" : "-") ? 0 : 1;
               return isSingleB - isSingleA;
+            }
+            case "multi-desc": {
+              const countPlayersA = a[0].split(isRanger ? "_" : "-").length;
+              const countPlayersB = b[0].split(isRanger ? "_" : "-").length;
+              return countPlayersB - countPlayersA;
+            }
+            case "multi-asc": {
+              const countPlayersA = a[0].split(isRanger ? "_" : "-").length;
+              const countPlayersB = b[0].split(isRanger ? "_" : "-").length;
+              return countPlayersA - countPlayersB;
+            }
+            case "type-gear": {
+              const isGearA = nameA.toLowerCase().includes("gear") ? 1 : 0;
+              const isGearB = nameB.toLowerCase().includes("gear") ? 1 : 0;
+
+              if (isGearB !== isGearA) {
+                return isGearB - isGearA;
+              }
+
+              const countPlayersA = a[0].split(isRanger ? "_" : "-").length;
+              const countPlayersB = b[0].split(isRanger ? "_" : "-").length;
+              return countPlayersB - countPlayersA;
             }
             default:
               return 0;
@@ -122,7 +157,7 @@ const App: React.FC = () => {
               <div className="absolute inset-0 w-24 h-24 bg-blue-500/30 rounded-full blur-xl animate-pulse"></div>
             </div>
           </div>
-          <h1 className="text-5xl font-bold text-white mb-2 drop-shadow-lg">PES Player Gallery</h1>
+          <h1 className="text-5xl font-bold text-white mb-2 drop-shadow-lg">{isRanger ? "Ranger" : "PES Player"} Gallery</h1>
           <p className="text-gray-200 text-lg">eFootball Legends Collection</p>
         </div>
 
@@ -196,7 +231,7 @@ const App: React.FC = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="🔍 ค้นหานักเตะ..."
+              placeholder={`🔍 ค้นหา ${isRanger ? "Ranger" : "นักเตะ"}...`}
               className="w-full px-6 py-4 rounded-xl bg-white/10 backdrop-blur-md text-white text-lg border border-white/20 placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-lg"
             />
 
@@ -223,17 +258,29 @@ const App: React.FC = () => {
               <option value="type-single" className="bg-gray-800">
                 👤 Single Card ก่อน
               </option>
+              <option value="type-gear" className="bg-gray-800">
+                ⚙️ Gear Card ก่อน
+              </option>
+              <option value="multi-desc" className="bg-gray-800">
+                📦 Multi มาก-น้อย
+              </option>
+              <option value="multi-asc" className="bg-gray-800">
+                📦 Multi น้อย-มาก
+              </option>
             </select>
           </div>
         )}
 
         {/* Players Grid */}
         {playerData ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 auto-rows-max gap-6">
             {filteredPlayers.map(([playerKey, count]) => {
               const playerNames = getPlayerNames(playerKey);
               const playerImages = getPlayerImages(playerKey);
-              const isDuoCard = playerNames.length > 1;
+              const isDuoCard = playerNames.length === 2;
+              const isMultiCard = playerNames.length > 2;
+              const playerCount = playerNames.length;
+              const refSingleUsers = React.createRef<HTMLDivElement>();
 
               return (
                 <div
@@ -245,19 +292,25 @@ const App: React.FC = () => {
                       count: count,
                     })
                   }
-                  className="bg-white/10 backdrop-blur-md rounded-xl overflow-hidden shadow-xl border border-white/20 hover:scale-105 hover:shadow-2xl transition-all duration-300 cursor-pointer"
+                  className="flex-1 flex flex-col bg-white/10 backdrop-blur-md rounded-xl overflow-hidden shadow-xl border border-white/20 hover:scale-105 hover:shadow-2xl transition-all duration-300 cursor-pointer"
                 >
                   {/* Image(s) */}
-                  <div className="relative aspect-[3/4] bg-gradient-to-br from-gray-700 to-gray-900 flex justify-end overflow-hidden">
-                    {isDuoCard ? (
-                      // Duo Card - แสดง 2 รูป
-                      <div className="grid grid-cols-2 h-full w-full">
-                        {playerImages.map((imageUrl, index) => (
-                          <div key={index} className="relative h-full flex items-center justify-center border-r border-white/10 last:border-r-0">
+                  {isMultiCard || isDuoCard ? (
+                    // Duo Card - แสดง 2 รูป
+                    <div className="flex-3 w-full grid grid-cols-2 auto-rows-fr bg-gradient-to-br from-gray-700 to-gray-900">
+                      {playerImages.map((imageUrl, index) => {
+                        const refUsers = React.createRef<HTMLDivElement>();
+                        return (
+                          <div key={index} className="h-full w-full flex items-center justify-center border-r border-b border-white/10">
                             <img
                               src={imageUrl}
                               alt={playerNames[index]}
-                              className="w-full h-full object-cover object-[85%_90%]"
+                              className={` object-cover ${isRanger ? "" : "w-full h-full object-[85%_90%]"}`}
+                              onLoad={() => {
+                                if (refUsers.current) {
+                                  refUsers.current.style.display = "none";
+                                }
+                              }}
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
                                 target.style.display = "none";
@@ -267,43 +320,49 @@ const App: React.FC = () => {
                                 }
                               }}
                             />
-                            <div className="hidden absolute inset-0 flex flex-col items-center justify-center bg-gray-800/70">
+
+                            <div ref={refUsers} className="w-full h-full flex flex-col items-center justify-center">
                               <Users size={40} className="text-white/30 mb-1" />
                               <p className="text-white/40 text-xs px-2 text-center">{playerNames[index]}</p>
                             </div>
                           </div>
-                        ))}
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    // Single Card - แสดง 1 รูป
+                    <div className="flex items-center flex-3 justify-center w-full bg-gradient-to-br from-gray-700 to-gray-900">
+                      <img
+                        src={playerImages[0]}
+                        alt={playerNames[0]}
+                        className={`object-cover ${isRanger ? "" : "w-full h-full"}`}
+                        onLoad={() => {
+                          if (refSingleUsers.current) {
+                            refSingleUsers.current.style.display = "none";
+                          }
+                        }}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = "none";
+                          const placeholder = target.nextElementSibling as HTMLElement;
+                          if (placeholder) {
+                            placeholder.classList.remove("hidden");
+                          }
+                        }}
+                      />
+                      <div ref={refSingleUsers} className="w-full h-full flex flex-col items-center justify-center">
+                        <Users size={64} className="text-white/30 mb-2" />
+                        <p className="text-white/50 text-sm">{playerNames[0]}</p>
                       </div>
-                    ) : (
-                      // Single Card - แสดง 1 รูป
-                      <div className="relative h-full flex items-center justify-center w-full">
-                        <img
-                          src={playerImages[0]}
-                          alt={playerNames[0]}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = "none";
-                            const placeholder = target.nextElementSibling as HTMLElement;
-                            if (placeholder) {
-                              placeholder.classList.remove("hidden");
-                            }
-                          }}
-                        />
-                        <div className="hidden absolute inset-0 flex flex-col items-center justify-center bg-gray-800/50">
-                          <Users size={64} className="text-white/30 mb-2" />
-                          <p className="text-white/50 text-sm">No Image</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   {/* Player Info */}
-                  <div className="p-4">
-                    <p className="text-white font-semibold text-lg mb-2">
+                  <div className="p-4 flex flex-1 flex-col w-full justify-between">
+                    <p className="text-white font-semibold text-lg mb-2 flex flex-wrap">
                       {playerNames.map((name, index) => (
-                        <span key={index}>
-                          {index > 0 && <span className="text-gray-300 mx-1">+</span>}
+                        <span key={index} className="truncate">
+                          <span className="text-gray-300 mx-1">+</span>
                           {name.replace(/([A-Z])/g, " $1").trim()}
                         </span>
                       ))}
@@ -312,6 +371,7 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="bg-yellow-200 text-gray-900 font-bold px-3 py-1 rounded-full text-sm">{count} cards</span>
                       {isDuoCard && <span className="bg-blue-500 text-white font-bold px-3 py-1 rounded-full text-sm flex items-center gap-1">🤝 Duo</span>}
+                      {isMultiCard && <span className="bg-purple-500 text-white font-bold px-3 py-1 rounded-full text-sm">📦 Multi {playerCount}</span>}
                     </div>
                   </div>
                 </div>
@@ -321,14 +381,14 @@ const App: React.FC = () => {
         ) : (
           <div className="text-center py-20">
             <Users size={80} className="mx-auto text-white/30 mb-4" />
-            <p className="text-white/70 text-xl">กรุณาอัปโหลดไฟล์ JSON เพื่อแสดงนักเตะ</p>
+            <p className="text-white/70 text-xl">กรุณาอัปโหลดไฟล์ JSON เพื่อแสดง {isRanger ? "Ranger" : "นักเตะ"}</p>
           </div>
         )}
 
         {/* No Results */}
         {playerData && filteredPlayers.length === 0 && (
           <div className="text-center py-20">
-            <p className="text-white/70 text-xl">ไม่พบนักเตะที่ค้นหา</p>
+            <p className="text-white/70 text-xl">ไม่พบ {isRanger ? "Ranger" : "นักเตะ"} ที่ค้นหา</p>
           </div>
         )}
 
@@ -338,7 +398,7 @@ const App: React.FC = () => {
             <div className="bg-gray-900 rounded-2xl shadow-2xl border border-white/20 max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
               {/* Modal Header */}
               <div className="sticky top-0 z-10 bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-4 flex items-center justify-between border-b border-white/10 flex-shrink-0">
-                <h2 className="text-2xl font-bold text-white">รายละเอียดนักเตะ</h2>
+                <h2 className="text-2xl font-bold text-white">รายละเอียด {isRanger ? "Ranger" : "นักเตะ"}</h2>
                 <button onClick={() => setSelectedPlayer(null)} className="p-2 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0">
                   <X size={24} className="text-white" />
                 </button>
@@ -350,36 +410,55 @@ const App: React.FC = () => {
                 <div className="mb-6">
                   {selectedPlayer.names.length > 1 ? (
                     // Duo Card Images
-                    <div className="grid grid-cols-2 gap-4">
-                      {getPlayerImages(selectedPlayer.key).map((imageUrl, index) => (
-                        <div key={index} className="relative bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl overflow-hidden aspect-[3/4]">
-                          <img
-                            src={imageUrl}
-                            alt={selectedPlayer.names[index]}
-                            className="w-full h-full object-cover object-[85%_90%]"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = "none";
-                              const placeholder = target.nextElementSibling as HTMLElement;
-                              if (placeholder) {
-                                placeholder.classList.remove("hidden");
-                              }
-                            }}
-                          />
-                          <div className="hidden absolute inset-0 flex flex-col items-center justify-center bg-gray-800/70">
-                            <Users size={60} className="text-white/30 mb-2" />
-                            <p className="text-white/40 text-sm px-2 text-center">{selectedPlayer.names[index]}</p>
+                    <div className="flex-3 w-full rounded-xl grid grid-cols-2 gap-4 auto-rows-fr">
+                      {getPlayerImages(selectedPlayer.key).map((imageUrl, index) => {
+                        const refUsers = React.createRef<HTMLDivElement>();
+
+                        return (
+                          <div key={index} className="relative h-full w-full flex items-center justify-center rounded-xl border border-white py-6 bg-gradient-to-br from-gray-700 to-gray-900">
+                            <img
+                              src={imageUrl}
+                              alt={selectedPlayer.names[index]}
+                              className={` object-cover ${isRanger ? "" : "w-full h-full object-[85%_90%]"}`}
+                              onLoad={() => {
+                                if (refUsers.current) {
+                                  refUsers.current.style.display = "none";
+                                }
+                              }}
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                                const placeholder = target.nextElementSibling as HTMLElement;
+                                if (placeholder) {
+                                  placeholder.classList.remove("hidden");
+                                }
+                              }}
+                            />
+
+                            <div className="absolute bottom-1 left-0">
+                              <p className="text-white/40 text-xl px-2 text-center">{selectedPlayer.names[index]}</p>
+                            </div>
+
+                            <div ref={refUsers} className="w-full h-full flex flex-col items-center justify-center">
+                              <Users size={60} className="text-white/30 mb-1" />
+                              <p className="text-white/40 text-xs px-2 text-center">{selectedPlayer.names[index]}</p>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     // Single Card Image
-                    <div className="relative bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl overflow-hidden aspect-[3/4] max-w-sm mx-auto">
+                    <div className="flex items-center flex-3 justify-center w-full bg-gradient-to-br from-gray-700 to-gray-900 py-6 rounded-xl border border-white">
                       <img
                         src={getPlayerImages(selectedPlayer.key)[0]}
                         alt={selectedPlayer.names[0]}
-                        className="w-full h-full object-cover"
+                        className={` object-cover ${isRanger ? "" : "w-full h-full object-[85%_90%]"}`}
+                        onLoad={() => {
+                          if (refSingleUsersModal.current) {
+                            refSingleUsersModal.current.style.display = "none";
+                          }
+                        }}
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.style.display = "none";
@@ -389,9 +468,9 @@ const App: React.FC = () => {
                           }
                         }}
                       />
-                      <div className="hidden absolute inset-0 flex flex-col items-center justify-center bg-gray-800/50">
-                        <Users size={80} className="text-white/30 mb-2" />
-                        <p className="text-white/50">No Image</p>
+                      <div ref={refSingleUsersModal} className="w-full h-full flex flex-col items-center justify-center">
+                        <Users size={60} className="text-white/30 mb-1" />
+                        <p className="text-white/40 text-xs px-2 text-center">{selectedPlayer.names[0]}</p>
                       </div>
                     </div>
                   )}
@@ -400,7 +479,7 @@ const App: React.FC = () => {
                 {/* Player Info */}
                 <div className="bg-white/5 rounded-xl p-4 mb-6">
                   <div className="mb-4">
-                    <p className="text-white/60 text-sm mb-1">ชื่อนักเตะ</p>
+                    <p className="text-white/60 text-sm mb-1">ชื่อ {isRanger ? "Ranger" : "นักเตะ"}</p>
                     {selectedPlayer.names.map((name, index) => (
                       <p className="text-white text-3xl font-bold">
                         <span key={index}>
@@ -414,11 +493,17 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-white/60 text-sm mb-1">จำนวนการ์ด</p>
-                      <p className="text-2xl font-bold text-yellow-300">{selectedPlayer.count} cards</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-2xl font-bold text-yellow-300">{selectedPlayer.count} cards</p>
+                      </div>
                     </div>
                     <div>
                       <p className="text-white/60 text-sm mb-1">ประเภท</p>
-                      <p className="text-2xl font-bold text-blue-300">{selectedPlayer.names.length > 1 ? "🤝 Duo Card" : "👤 Single Card"}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-2xl font-bold text-blue-300">
+                          {selectedPlayer.names.length == 2 ? "🤝 Duo Card" : selectedPlayer.names.length > 2 ? `📦 Multi ${selectedPlayer.names.length}` : "👤 Single Card"}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
