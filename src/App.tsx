@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Upload, Users, Image, X } from "lucide-react";
+import debounce from "lodash.debounce";
 
 interface PlayerData {
   total_folders: number;
@@ -14,6 +15,8 @@ interface SelectedPlayer {
   count: number;
 }
 
+type PlayerEntry = [string, number];
+
 const App: React.FC = () => {
   const [playerData, setPlayerData] = useState<PlayerData | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -21,6 +24,8 @@ const App: React.FC = () => {
   const [isRanger, setIsRanger] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<string>("name-asc");
   const [selectedPlayer, setSelectedPlayer] = useState<SelectedPlayer | null>(null);
+
+  const [filteredPlayers, setFilteredPlayers] = useState<PlayerEntry[]>([]);
 
   const refSingleUsersModal = React.createRef<HTMLDivElement>();
 
@@ -79,59 +84,96 @@ const App: React.FC = () => {
     });
   };
 
-  const filteredPlayers = playerData
-    ? Object.entries(playerData.players)
-        .filter(([name]) => name.toLowerCase().includes(searchTerm.toLowerCase()))
-        .sort((a, b) => {
-          const [nameA, countA] = a;
-          const [nameB, countB] = b;
+  const filterAndSortPlayers = useMemo(
+    () =>
+      (data: PlayerData, search: string, sort: string): PlayerEntry[] => {
+        return Object.entries(data.players)
+          .filter(([name]) => {
+            if (!search.trim()) return true;
 
-          switch (sortBy) {
-            case "name-asc":
-              return nameA.localeCompare(nameB);
-            case "name-desc":
-              return nameB.localeCompare(nameA);
-            case "count-asc":
-              return countA - countB;
-            case "count-desc":
-              return countB - countA;
-            case "type-duo": {
-              const isDuoA = nameA.includes(isRanger ? "_" : "-") ? 1 : 0;
-              const isDuoB = nameB.includes(isRanger ? "_" : "-") ? 1 : 0;
-              return isDuoB - isDuoA;
-            }
-            case "type-single": {
-              const isSingleA = nameA.includes(isRanger ? "_" : "-") ? 0 : 1;
-              const isSingleB = nameB.includes(isRanger ? "_" : "-") ? 0 : 1;
-              return isSingleB - isSingleA;
-            }
-            case "multi-desc": {
-              const countPlayersA = a[0].split(isRanger ? "_" : "-").length;
-              const countPlayersB = b[0].split(isRanger ? "_" : "-").length;
-              return countPlayersB - countPlayersA;
-            }
-            case "multi-asc": {
-              const countPlayersA = a[0].split(isRanger ? "_" : "-").length;
-              const countPlayersB = b[0].split(isRanger ? "_" : "-").length;
-              return countPlayersA - countPlayersB;
-            }
-            case "type-gear": {
-              const isGearA = nameA.toLowerCase().includes("gear") ? 1 : 0;
-              const isGearB = nameB.toLowerCase().includes("gear") ? 1 : 0;
+            const text = name.toLowerCase();
+            const terms = search.toLowerCase().trim().split(/\s+/);
 
-              if (isGearB !== isGearA) {
-                return isGearB - isGearA;
+            // OR (space)
+            return terms.some((term) => {
+              // AND (_)
+              const subTerms = term.split("_");
+              return subTerms.every((sub) => text.includes(sub));
+            });
+          })
+          .sort((a, b) => {
+            const [nameA, countA] = a;
+            const [nameB, countB] = b;
+
+            switch (sort) {
+              case "name-asc":
+                return nameA.localeCompare(nameB);
+              case "name-desc":
+                return nameB.localeCompare(nameA);
+              case "count-asc":
+                return countA - countB;
+              case "count-desc":
+                return countB - countA;
+              case "type-duo": {
+                const isDuoA = nameA.includes(isRanger ? "_" : "-") ? 1 : 0;
+                const isDuoB = nameB.includes(isRanger ? "_" : "-") ? 1 : 0;
+                return isDuoB - isDuoA;
               }
+              case "type-single": {
+                const isSingleA = nameA.includes(isRanger ? "_" : "-") ? 0 : 1;
+                const isSingleB = nameB.includes(isRanger ? "_" : "-") ? 0 : 1;
+                return isSingleB - isSingleA;
+              }
+              case "multi-desc": {
+                const aLen = nameA.split(isRanger ? "_" : "-").length;
+                const bLen = nameB.split(isRanger ? "_" : "-").length;
+                return bLen - aLen;
+              }
+              case "multi-asc": {
+                const aLen = nameA.split(isRanger ? "_" : "-").length;
+                const bLen = nameB.split(isRanger ? "_" : "-").length;
+                return aLen - bLen;
+              }
+              case "type-gear": {
+                const gearA = nameA.toLowerCase().includes("gear") ? 1 : 0;
+                const gearB = nameB.toLowerCase().includes("gear") ? 1 : 0;
+                if (gearB !== gearA) return gearB - gearA;
 
-              const countPlayersA = a[0].split(isRanger ? "_" : "-").length;
-              const countPlayersB = b[0].split(isRanger ? "_" : "-").length;
-              return countPlayersB - countPlayersA;
+                const aLen = nameA.split(isRanger ? "_" : "-").length;
+                const bLen = nameB.split(isRanger ? "_" : "-").length;
+                return bLen - aLen;
+              }
+              default:
+                return 0;
             }
-            default:
-              return 0;
-          }
-        })
-    : [];
+          });
+      },
+    [isRanger]
+  );
+
+  const debouncedFilter = useMemo(
+    () =>
+      debounce(
+        (data: PlayerData, search: string, sort: string) => {
+          const result = filterAndSortPlayers(data, search, sort);
+          setFilteredPlayers(result);
+        },
+        300 // delay 300ms
+      ),
+    [filterAndSortPlayers]
+  );
+
+  useEffect(() => {
+    if (!playerData) return;
+
+    debouncedFilter(playerData, searchTerm, sortBy);
+  }, [playerData, searchTerm, sortBy, debouncedFilter]);
+
+  useEffect(() => {
+    return () => {
+      debouncedFilter.cancel();
+    };
+  }, [debouncedFilter]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-indigo-900">
