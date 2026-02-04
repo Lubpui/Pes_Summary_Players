@@ -50,6 +50,7 @@ const App: React.FC = () => {
         try {
           const json = JSON.parse(e.target?.result as string);
           setPlayerData(json);
+          console.log('json', json)
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (_error) {
           alert("ไฟล์ JSON ไม่ถูกต้อง กรุณาลองใหม่");
